@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Spelling & Grammar Checker</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+        }
+        .error-highlight {
+            background-color: #fef3c7;
+            border-bottom: 2px dashed #f59e0b;
+            position: relative;
+        }
+        .suggestion-box {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 8px;
+            z-index: 10;
+            min-width: 200px;
+        }
+        .suggestion-item {
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .suggestion-item:hover {
+            background-color: #f1f5f9;
+        }
+        #text-input {
+            min-height: 300px;
+        }
+        .grammar-error {
+            background-color: #fee2e2;
+            border-bottom: 2px dashed #ef4444;
+        }
+        .spelling-error {
+            background-color: #fef3c7;
+            border-bottom: 2px dashed #f59e0b;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <div class="flex justify-center mb-6">
+                <img src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/9b2a4c94-f33c-4e74-a44f-3a35486c2b21.png" alt="Spelling and grammar checker application logo" class="rounded-lg shadow-md" />
+            </div>
+            <p class="text-gray-600 text-lg">Advanced Spelling & Grammar Checker</p>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+            <div class="p-6">
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <button id="check-btn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-200 flex items-center">
+                        <span id="check-btn-text">Check Grammar</span>
+                        <span id="loading-spinner" class="ml-2 hidden">
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                    <button id="copy-btn" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition duration-200">Copy Text</button>
+                    <button id="clear-btn" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition duration-200">Clear</button>
+                    <button id="download-btn" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition duration-200">Download</button>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="text-input" class="block text-sm font-medium text-gray-700 mb-2">Enter your text to check:</label>
+                        <div id="text-input" contenteditable="true" class="w-full p-4 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-medium text-gray-700">Results:</label>
+                            <div id="stats" class="text-sm text-gray-500">
+                                <span id="word-count">0</span> words | 
+                                <span id="character-count">0</span> chars | 
+                                <span id="error-count">0</span> issues
+                            </div>
+                        </div>
+                        <div id="output" class="w-full p-4 border border-gray-300 rounded-md bg-gray-50 min-h-300"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+            <div class="p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Statistics</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-medium text-blue-800 mb-2">Readability</h3>
+                        <div id="readability-score" class="text-3xl font-bold text-blue-600">-</div>
+                        <p class="text-sm text-blue-600 mt-1">Score</p>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-medium text-yellow-800 mb-2">Spelling Errors</h3>
+                        <div id="spelling-errors" class="text-3xl font-bold text-yellow-600">0</div>
+                        <p class="text-sm text-yellow-600 mt-1">Detected</p>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-medium text-red-800 mb-2">Grammar Issues</h3>
+                        <div id="grammar-errors" class="text-3xl font-bold text-red-600">0</div>
+                        <p class="text-sm text-red-600 mt-1">Detected</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="p-6">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Error Details</h2>
+                <div id="error-list" class="space-y-4">
+                    <div class="text-center py-8 text-gray-400">
+                        No errors detected yet. Enter text above and click "Check Text" to analyze your content.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM elements
+            const textInput = document.getElementById('text-input');
+            const output = document.getElementById('output');
+            const checkBtn = document.getElementById('check-btn');
+            const copyBtn = document.getElementById('copy-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const checkBtnText = document.getElementById('check-btn-text');
+            const wordCountEl = document.getElementById('word-count');
+            const charCountEl = document.getElementById('character-count');
+            const errorCountEl = document.getElementById('error-count');
+            const readabilityScore = document.getElementById('readability-score');
+            const spellingErrors = document.getElementById('spelling-errors');
+            const grammarErrors = document.getElementById('grammar-errors');
+            const errorList = document.getElementById('error-list');
+
+            // Sample dictionary for spelling (in a real app, this would be much larger or use an API)
+            const dictionary = [
+                'the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog',
+                'hello', 'world', 'this', 'is', 'a', 'test', 'example', 'correct',
+                'spelling', 'grammar', 'checker', 'application', 'writing', 'error',
+                'detection', 'word', 'sentence', 'paragraph', 'English', 'language',
+                'tool', 'software', 'developer', 'computer', 'science', 'project',
+                'university', 'student', 'learning', 'education', 'technology'
+            ];
+
+            // Grammar rules (simplified for demo)
+            const grammarRules = [
+                {
+                    pattern: /\b(I|i) (is|am|are)\b/,
+                    correction: 'I am',
+                    type: 'grammar',
+                    message: 'Incorrect verb conjugation for first person singular'
+                },
+                {
+                    pattern: /\b(They|they) (is)\b/,
+                    correction: 'They are',
+                    type: 'grammar',
+                    message: 'Incorrect verb conjugation for third person plural'
+                },
+                {
+                    pattern: /\b(You|you) (is)\b/,
+                    correction: 'You are',
+                    type: 'grammar',
+                    message: 'Incorrect verb conjugation for second person'
+                },
+                {
+                    pattern: /\brun\s+runned\b/,
+                    correction: 'ran',
+                    type: 'grammar',
+                    message: 'Incorrect past tense verb form'
+                },
+                {
+                    pattern: /\bgo\s+goed\b/,
+                    correction: 'went',
+                    type: 'grammar',
+                    message: 'Incorrect past tense verb form'
+                }
+            ];
+
+            // Update character and word count
+            function updateCounts() {
+                const text = textInput.textContent.trim();
+                const wordCount = text ? text.split(/\s+/).length : 0;
+                const charCount = text.length;
+                
+                wordCountEl.textContent = wordCount;
+                charCountEl.textContent = charCount;
+            }
+
+            textInput.addEventListener('input', updateCounts);
+            updateCounts();
+
+            // Check spelling and grammar
+            function checkText() {
+                checkBtnText.textContent = 'Checking...';
+                loadingSpinner.classList.remove('hidden');
+                checkBtn.disabled = true;
+
+                // Simulate API delay
+                setTimeout(() => {
+                    const text = textInput.textContent.trim();
+                    let processedText = text;
+                    let errors = [];
+                    let spellingCount = 0;
+                    let grammarCount = 0;
+
+                    // Reset output
+                    output.innerHTML = '';
+                    
+                    if (!text) {
+                        errorList.innerHTML = `<div class="text-center py-8 text-gray-400">
+                            No errors detected yet. Enter text above and click "Check Text" to analyze your content.
+                        </div>`;
+                        errorCountEl.textContent = '0';
+                        spellingErrors.textContent = '0';
+                        grammarErrors.textContent = '0';
+                        readabilityScore.textContent = '-';
+                        
+                        checkBtnText.textContent = 'Check Text';
+                        loadingSpinner.classList.add('hidden');
+                        checkBtn.disabled = false;
+                        return;
+                    }
+
+                    // Calculate readability score (simplified Flesch-Kincaid)
+                    const words = text.split(/\s+/);
+                    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+                    const syllables = words.reduce((count, word) => count + countSyllables(word), 0);
+                    
+                    let readability = 0;
+                    if (words.length > 0 && sentences.length > 0) {
+                        readability = 206.835 - (1.015 * (words.length / sentences.length)) - (84.6 * (syllables / words.length));
+                        readability = Math.min(100, Math.max(0, Math.round(readability)));
+                    }
+                    readabilityScore.textContent = readability;
+
+                    // Process each word for spelling and grammar
+                    const wordsWithPunctuation = text.match(/\b\w+\b|\s+|[^\w\s]/g) || [];
+                    
+                    let currentPosition = 0;
+                    let newHTML = '';
+                    let currentErrors = [];
+                    
+                    wordsWithPunctuation.forEach(segment => {
+                        if (segment.trim() === '' || /[^\w]/.test(segment)) {
+                            newHTML += segment;
+                            currentPosition += segment.length;
+                            return;
+                        }
+                        
+                        const word = segment.toLowerCase();
+                        let isSpellingError = !dictionary.includes(word);
+                        let grammarError = null;
+                        
+                        // Check grammar rules
+                        for (const rule of grammarRules) {
+                            if (rule.pattern.test(text.substring(currentPosition, currentPosition + segment.length + 10))) {
+                                grammarError = rule;
+                                break;
+                            }
+                        }
+                        
+                        if (grammarError) {
+                            grammarCount++;
+                            errors.push({
+                                type: 'grammar',
+                                word: segment,
+                                position: currentPosition,
+                                message: grammarError.message,
+                                suggestions: [grammarError.correction]
+                            });
+                            
+                            newHTML += `<span class="grammar-error" data-error-index="${errors.length - 1}">${segment}</span>`;
+                        } else if (isSpellingError) {
+                            spellingCount++;
+                            // Generate spelling suggestions
+                            const suggestions = getSuggestions(segment);
+                            
+                            errors.push({
+                                type: 'spelling',
+                                word: segment,
+                                position: currentPosition,
+                                message: 'Possible spelling error',
+                                suggestions: suggestions
+                            });
+                            
+                            newHTML += `<span class="spelling-error" data-error-index="${errors.length - 1}">${segment}</span>`;
+                        } else {
+                            newHTML += segment;
+                        }
+                        
+                        currentPosition += segment.length;
+                    });
+                    
+                    output.innerHTML = newHTML;
+                    errorCountEl.textContent = errors.length;
+                    spellingErrors.textContent = spellingCount;
+                    grammarErrors.textContent = grammarCount;
+                    
+                    // Update error list
+                    updateErrorList(errors);
+                    
+                    // Add click handlers for error highlights
+                    document.querySelectorAll('.spelling-error, .grammar-error').forEach(el => {
+                        el.addEventListener('click', function(e) {
+                            const index = parseInt(this.getAttribute('data-error-index'));
+                            showSuggestions(this, errors[index]);
+                            e.stopPropagation();
+                        });
+                    });
+                    
+                    checkBtnText.textContent = 'Check Text';
+                    loadingSpinner.classList.add('hidden');
+                    checkBtn.disabled = false;
+                }, 1500);
+            }
+
+            // Count syllables in a word (simplified)
+            function countSyllables(word) {
+                word = word.toLowerCase();
+                if (word.length <= 3) return 1;
+                word = word.replace(/(?:[^laeiouy]|ed|[^laeiouy]e)$/, '');
+                word = word.replace(/^y/, '');
+                return (word.match(/[aeiouy]{1,2}/g) || []).length;
+            }
+
+            // Get spelling suggestions (simplified)
+            function getSuggestions(word) {
+                if (!word) return [];
+                
+                const suggestions = [];
+                const lowercaseWord = word.toLowerCase();
+                
+                // Check for close matches in dictionary
+                for (const dictWord of dictionary) {
+                    if (dictWord.length < 3) continue;
+                    
+                    // Simple distance calculation
+                    if (dictWord.startsWith(lowercaseWord.substring(0, 3)) && 
+                        Math.abs(dictWord.length - lowercaseWord.length) <= 2) {
+                        suggestions.push(dictWord);
+                        if (suggestions.length >= 3) break;
+                    }
+                }
+                
+                // If no good matches, return some common words
+                if (suggestions.length === 0) {
+                    return ['example', 'correct', 'word'];
+                }
+                
+                return suggestions;
+            }
+
+            // Update error list in the UI
+            function updateErrorList(errors) {
+                if (errors.length === 0) {
+                    errorList.innerHTML = `<div class="text-center py-8 text-gray-400">
+                        No errors found! Your text looks good.
+                    </div>`;
+                    return;
+                }
+                
+                let html = '';
+                errors.forEach((error, index) => {
+                    const typeClass = error.type === 'spelling' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200';
+                    const typeText = error.type === 'spelling' ? 'Spelling' : 'Grammar';
+                    
+                    html += `
+                    <div class="border rounded-lg p-4 ${typeClass}">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="inline-block px-2 py-1 text-xs font-semibold rounded ${error.type === 'spelling' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                                    ${typeText} Issue
+                                </span>
+                                <span class="ml-2 text-gray-700">"${error.word}"</span>
+                            </div>
+                            <button class="text-blue-600 hover:text-blue-800 text-sm font-medium" data-error-index="${index}">
+                                Show in text
+                            </button>
+                        </div>
+                        <p class="text-gray-600 text-sm mb-2">${error.message}</p>
+                        <div class="mt-2">
+                            <p class="text-gray-700 text-sm font-medium mb-1">Suggestions:</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${error.suggestions.map(suggestion => `
+                                    <button class="px-3 py-1 bg-white border border-gray-200 rounded-md text-sm hover:bg-blue-50 hover:border-blue-200" 
+                                            data-error-index="${index}" data-suggestion="${suggestion}">
+                                        ${suggestion}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                });
+                
+                errorList.innerHTML = html;
+                
+                // Add event listeners to suggestion buttons
+                document.querySelectorAll('#error-list button[data-suggestion]').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-error-index'));
+                        const suggestion = this.getAttribute('data-suggestion');
+                        applySuggestion(index, suggestion);
+                    });
+                });
+                
+                // Add event listeners to "Show in text" buttons
+                document.querySelectorAll('#error-list button[data-error-index]').forEach(btn => {
+                    if (!btn.getAttribute('data-suggestion')) {
+                        btn.addEventListener('click', function() {
+                            const index = parseInt(this.getAttribute('data-error-index'));
+                            scrollToError(index);
+                        });
+                    }
+                });
+            }
+
+            // Apply suggestion to the output text
+            function applySuggestion(errorIndex, suggestion) {
+                const errorSpans = document.querySelectorAll(`.spelling-error, .grammar-error`);
+                if (errorIndex >= 0 && errorIndex < errorSpans.length) {
+                    const errorSpan = errorSpans[errorIndex];
+                    errorSpan.textContent = suggestion;
+                    errorSpan.classList.remove('spelling-error', 'grammar-error');
+                    errorSpan.classList.add('bg-green-100', 'border-b-2', 'border-green-500');
+                    errorSpan.removeAttribute('data-error-index');
+                    
+                    // Update counts
+                    const currentErrors = parseInt(errorCountEl.textContent);
+                    if (currentErrors > 0) {
+                        errorCountEl.textContent = currentErrors - 1;
+                        
+                        const currentTypeErrors = errorSpan.classList.contains('spelling-error') ? 
+                            parseInt(spellingErrors.textContent) : 
+                            parseInt(grammarErrors.textContent);
+                            
+                        if (errorSpan.classList.contains('spelling-error')) {
+                            spellingErrors.textContent = currentTypeErrors - 1;
+                        } else {
+                            grammarErrors.textContent = currentTypeErrors - 1;
+                        }
+                    }
+                    
+                    // Remove the error from the error list
+                    setTimeout(() => {
+                        const errorItems = document.querySelectorAll('#error-list > div');
+                        if (errorIndex < errorItems.length) {
+                            errorItems[errorIndex].remove();
+                            
+                            // If all errors are fixed, show message
+                            if (document.querySelectorAll('#error-list > div').length === 0) {
+                                errorList.innerHTML = `<div class="text-center py-8 text-gray-400">
+                                    All errors fixed! Your text looks perfect now.
+                                </div>`;
+                                errorCountEl.textContent = '0';
+                            }
+                        }
+                    }, 300);
+                }
+            }
+
+            // Scroll to error in the output text
+            function scrollToError(errorIndex) {
+                const errorSpan = document.querySelector(`[data-error-index="${errorIndex}"]`);
+                if (errorSpan) {
+                    errorSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Highlight temporarily
+                    errorSpan.style.backgroundColor = '#fffa90';
+                    setTimeout(() => {
+                        errorSpan.style.backgroundColor = '';
+                    }, 2000);
+                }
+            }
+
+            // Show suggestions popup for an error
+            function showSuggestions(element, error) {
+                // Remove any existing suggestion boxes
+                document.querySelectorAll('.suggestion-box').forEach(box => box.remove());
+                
+                const box = document.createElement('div');
+                box.className = 'suggestion-box';
+                
+                box.innerHTML = `
+                    <div class="text-sm text-gray-700 mb-2">${error.message}</div>
+                    <div class="space-y-1">
+                        ${error.suggestions.map(suggestion => `
+                            <div class="suggestion-item" data-suggestion="${suggestion}">
+                                ${suggestion}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+                element.appendChild(box);
+                
+                // Position the box
+                const rect = element.getBoundingClientRect();
+                box.style.left = '0';
+                box.style.bottom = 'calc(100% + 5px)';
+                
+                // Add event listeners to suggestions
+                box.querySelectorAll('.suggestion-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        element.textContent = item.getAttribute('data-suggestion');
+                        element.classList.remove('spelling-error', 'grammar-error');
+                        element.removeAttribute('data-error-index');
+                        box.remove();
+                        
+                        // Update counts
+                        const currentErrors = parseInt(errorCountEl.textContent);
+                        if (currentErrors > 0) {
+                            errorCountEl.textContent = currentErrors - 1;
+                            
+                            const currentTypeErrors = element.classList.contains('spelling-error') ? 
+                                parseInt(spellingErrors.textContent) : 
+                                parseInt(grammarErrors.textContent);
+                                
+                            if (element.classList.contains('spelling-error')) {
+                                spellingErrors.textContent = currentTypeErrors - 1;
+                            } else {
+                                grammarErrors.textContent = currentTypeErrors - 1;
+                            }
+                        }
+                    });
+                });
+                
+                // Close when clicking outside
+                document.addEventListener('click', function closeBox() {
+                    box.remove();
+                    document.removeEventListener('click', closeBox);
+                });
+            }
+
+            // Copy text to clipboard
+            function copyText() {
+                const text = output.textContent || textInput.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                    }, 2000);
+                });
+            }
+
+            // Clear all text
+            function clearText() {
+                textInput.textContent = '';
+                output.textContent = '';
+                updateCounts();
+                errorCountEl.textContent = '0';
+                spellingErrors.textContent = '0';
+                grammarErrors.textContent = '0';
+                readabilityScore.textContent = '-';
+                errorList.innerHTML = `<div class="text-center py-8 text-gray-400">
+                    No errors detected yet. Enter text above and click "Check Text" to analyze your content.
+                </div>`;
+            }
+
+            // Download text as file
+            function downloadText() {
+                const text = output.textContent || textInput.textContent;
+                if (!text.trim()) return;
+                
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'corrected-text.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            // Event listeners
+            checkBtn.addEventListener('click', checkText);
+            copyBtn.addEventListener('click', copyText);
+            clearBtn.addEventListener('click', clearText);
+            downloadBtn.addEventListener('click', downloadText);
+
+            // Close suggestion boxes when clicking outside
+            document.addEventListener('click', function() {
+                document.querySelectorAll('.suggestion-box').forEach(box => box.remove());
+            });
+        });
+    </script>
+</body>
+</html>
+
